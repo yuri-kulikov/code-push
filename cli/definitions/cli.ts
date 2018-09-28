@@ -208,6 +208,7 @@ export interface IReleaseReactCommand extends IReleaseBaseCommand {
     sourcemapOutput?: string;
     outputDir?: string;
     config?: string;
+    ramBundle?: string;
 }
 
 export interface IRollbackCommand extends ICommand {

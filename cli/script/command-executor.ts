@@ -1374,7 +1374,7 @@ export var releaseReact = (command: cli.IReleaseReactCommand): Promise<void> => 
         // This is needed to clear the react native bundler cache:
         // https://github.com/facebook/react-native/issues/4289
         .then(() => deleteFolder(`${os.tmpdir()}/react-*`))
-        .then(() => runReactNativeBundleCommand(bundleName, command.development || false, entryFile, outputFolder, platform, command.sourcemapOutput, command.config))
+        .then(() => runReactNativeBundleCommand(bundleName, command.development || false, entryFile, outputFolder, platform, command.sourcemapOutput, command.config, command.ramBundle))
         .then(() => {
             log(chalk.cyan("\nReleasing update contents to CodePush:\n"));
             return release(releaseCommand);
@@ -1439,7 +1439,7 @@ function requestAccessKey(): Promise<string> {
     });
 }
 
-export var runReactNativeBundleCommand = (bundleName: string, development: boolean, entryFile: string, outputFolder: string, platform: string, sourcemapOutput: string, config: string): Promise<void> => {
+export var runReactNativeBundleCommand = (bundleName: string, development: boolean, entryFile: string, outputFolder: string, platform: string, sourcemapOutput: string, config: string, ramBundle: string): Promise<void> => {
     let reactNativeBundleArgs: string[] = [];
     let envNodeArgs: string = process.env.CODE_PUSH_NODE_ARGS;
 
@@ -1447,8 +1447,21 @@ export var runReactNativeBundleCommand = (bundleName: string, development: boole
         Array.prototype.push.apply(reactNativeBundleArgs, envNodeArgs.trim().split(/\s+/));
     }
 
+    reactNativeBundleArgs.push(path.join("node_modules", "react-native", "local-cli", "cli.js"));
+
+    if (!ramBundle) {
+        reactNativeBundleArgs.push("bundle");
+    } else {
+        let projectPackageJson: any = require(path.join(process.cwd(), "package.json"));
+        let reactNativeVersion: string = projectPackageJson.dependencies['react-native'];
+        let bundleCommand: any = semver.satisfies(reactNativeVersion, ">=0.57.0") ? "ram-bundle" : "unbundle";
+        reactNativeBundleArgs.push(bundleCommand);
+        if (platform == 'android') {
+            reactNativeBundleArgs.push(`--indexed-${bundleCommand}`);
+        }
+    }
+
     Array.prototype.push.apply(reactNativeBundleArgs, [
-        path.join("node_modules", "react-native", "local-cli", "cli.js"), "bundle",
         "--assets-dest", outputFolder,
         "--bundle-output", path.join(outputFolder, bundleName),
         "--dev", development,
